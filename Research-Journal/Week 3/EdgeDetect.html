@@ -1,0 +1,218 @@
+
+<!DOCTYPE html>
+<html lang="en">
+	<head>
+		<title>three.js canvas - geometry - earth</title>
+		<meta charset="utf-8">
+		<meta name="viewport" content="width=device-width, user-scalable=no, minimum-scale=1.0, maximum-scale=1.0">
+		<style>
+			body {
+				color: #808080;
+				font-family:Monospace;
+				font-size:13px;
+				text-align:center;
+
+				background-color: #ffffff;
+				margin: 0px;
+				overflow: hidden;
+			}
+
+			#info {
+				position: absolute;
+				top: 0px; width: 100%;
+				padding: 5px;
+			}
+
+			a {
+
+				color: #0080ff;
+			}
+
+		</style>
+	</head>
+	<body>
+
+		<div id="container"></div>
+		<div id="info"><a href="http://threejs.org" target="_blank">three.js</a> - earth demo</div>
+
+		<script src="../js/build/three.min.js"></script>
+
+		<script src="../js/Projector.js"></script>
+		<script src="../js/CanvasRenderer.js"></script>
+		<script src="../js/renderer.js"></script>
+		<script src="../js/stats.min.js"></script>
+
+<script type="x-shader/x-vertex" id="vertexShader">
+		uniform sampler2D texture;
+		varying vec2 vUv;
+
+		
+		varying vec2 left_coord;
+		varying vec2 right_coord;
+		varying vec2 above_coord;
+		varying vec2 below_coord;
+				
+		float d = 0.002;
+
+		void main()
+			{
+ 
+				gl_Position = projectionMatrix * modelViewMatrix * vec4( position, 1.0 );
+
+ 				vUv = uv;
+				
+				
+				left_coord = vUv.xy + vec2(-d , 0);
+				right_coord = vUv.xy + vec2(d , 0);
+				above_coord = vUv.xy + vec2(0,d);
+				below_coord = vUv.xy + vec2(0,-d);
+				
+
+			}
+</script>
+
+<script type="x-shader/x-vertex" id="fragmentShader">
+		varying vec2 vUv;
+		uniform sampler2D texture;
+
+		varying vec2 left_coord;
+		varying vec2 right_coord;
+		varying vec2 above_coord;
+		varying vec2 below_coord;
+		
+		void main()
+			{
+
+
+			vec4 diffuse_coloruVu = texture2D(texture, vUv);
+			vec4 diffuse_colorL = texture2D(texture, left_coord);
+			vec4 diffuse_colorR = texture2D(texture, right_coord);
+			vec4 diffuse_colorA = texture2D(texture, above_coord);
+			vec4 diffuse_colorB = texture2D(texture, below_coord);
+
+			gl_FragColor =(diffuse_colorL + diffuse_colorR + diffuse_colorA + diffuse_colorB ) - (4.0 * diffuse_coloruVu) ;
+			gl_FragColor = vec4(gl_FragColor.r, gl_FragColor.r, gl_FragColor.r, 1.0);
+			gl_FragColor.a = 1.0;
+
+			
+			}
+</script>
+		<script>
+
+			var container, stats;
+			var camera, scene, renderer;
+			var group;
+			var mouseX = 0, mouseY = 0;
+
+			var windowHalfX = window.innerWidth / 2;
+			var windowHalfY = window.innerHeight / 2;
+
+			init();
+			animate();
+
+			function init() {
+
+				container = document.getElementById( 'container' );
+
+				camera = new THREE.PerspectiveCamera( 60, window.innerWidth / window.innerHeight, 1, 2000 );
+				camera.position.z = 500;
+
+				scene = new THREE.Scene();
+
+				group = new THREE.Group();
+				scene.add( group );
+
+				
+				var geometry = new THREE.SphereGeometry( 150, 150, 150 );
+				
+
+				
+				var material = new THREE.ShaderMaterial({
+								uniforms: {
+								
+								pixelWidth: {
+								type:"f", value: window.innerWidth},
+								pixelHeight: {
+								type:"f", value: window.innerHeight},
+								
+								texture: {
+								type:"t",
+								value: THREE.ImageUtils.loadTexture('earthmap1k.jpg', function() {renderer.render(scene);})
+								}
+								
+								},
+								vertexShader: document.getElementById( 'vertexShader' ).textContent,
+								fragmentShader: document.getElementById( 'fragmentShader' ).textContent
+														});
+								material.bumpMap    = THREE.ImageUtils.loadTexture('earthbump1k.jpg')
+								material.bumpScale = 0.05
+								var mesh = new THREE.Mesh( geometry, material );
+								group.add( mesh );
+
+				 
+
+				renderer = new THREE.WebGLRenderer();
+				renderer.setClearColor( 0xffffff );
+				renderer.setPixelRatio( window.devicePixelRatio );
+				renderer.setSize( window.innerWidth, window.innerHeight );
+				container.appendChild( renderer.domElement );
+
+				stats = new Stats();
+				stats.domElement.style.position = 'absolute';
+				stats.domElement.style.top = '0px';
+				container.appendChild( stats.domElement );
+
+				document.addEventListener( 'mousemove', onDocumentMouseMove, false );
+
+				//
+
+				window.addEventListener( 'resize', onWindowResize, false );
+
+			}
+
+			function onWindowResize() {
+
+				windowHalfX = window.innerWidth / 2;
+				windowHalfY = window.innerHeight / 2;
+
+				camera.aspect = window.innerWidth / window.innerHeight;
+				camera.updateProjectionMatrix();
+
+				renderer.setSize( window.innerWidth, window.innerHeight );
+
+			}
+
+			function onDocumentMouseMove( event ) {
+
+				//mouseX = ( event.clientX - windowHalfX );
+				//mouseY = ( event.clientY - windowHalfY );
+
+			}
+
+
+			function animate() {
+
+				requestAnimationFrame( animate );
+
+				render();
+				stats.update();
+
+			}
+
+			function render() {
+
+				
+				camera.lookAt( scene.position );
+
+				group.rotation.y -= 0.005;
+
+				
+				renderer.render( scene, camera );
+
+			}
+
+
+		</script>
+
+	</body>
+</html>
