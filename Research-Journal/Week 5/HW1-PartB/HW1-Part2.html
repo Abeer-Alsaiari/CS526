@@ -1,0 +1,807 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <title>CS 526 - HW1 </title>
+        <meta charset="utf-8">
+    </head>
+
+    <body>
+       
+    </body>
+
+    <script src="../js/build/Three.js"></script>
+
+<script id="vertexShader" type="x-shader/x-vertex">
+//+++++++++++++++Ashima's noise function++++++++++
+vec3 mod289(vec3 x)
+{
+  return x - floor(x * (1.0 / 289.0)) * 289.0;
+}
+
+vec4 mod289(vec4 x)
+{
+  return x - floor(x * (1.0 / 289.0)) * 289.0;
+}
+
+vec4 permute(vec4 x)
+{
+  return mod289(((x*34.0)+1.0)*x);
+}
+
+vec4 taylorInvSqrt(vec4 r)
+{
+  return 1.79284291400159 - 0.85373472095314 * r;
+}
+
+vec3 fade(vec3 t) {
+  return t*t*t*(t*(t*6.0-15.0)+10.0);
+}
+
+// Classic Perlin noise
+float cnoise(vec3 P)
+{
+  vec3 Pi0 = floor(P); // Integer part for indexing
+  vec3 Pi1 = Pi0 + vec3(1.0); // Integer part + 1
+  Pi0 = mod289(Pi0);
+  Pi1 = mod289(Pi1);
+  vec3 Pf0 = fract(P); // Fractional part for interpolation
+  vec3 Pf1 = Pf0 - vec3(1.0); // Fractional part - 1.0
+  vec4 ix = vec4(Pi0.x, Pi1.x, Pi0.x, Pi1.x);
+  vec4 iy = vec4(Pi0.yy, Pi1.yy);
+  vec4 iz0 = Pi0.zzzz;
+  vec4 iz1 = Pi1.zzzz;
+
+  vec4 ixy = permute(permute(ix) + iy);
+  vec4 ixy0 = permute(ixy + iz0);
+  vec4 ixy1 = permute(ixy + iz1);
+
+  vec4 gx0 = ixy0 * (1.0 / 7.0);
+  vec4 gy0 = fract(floor(gx0) * (1.0 / 7.0)) - 0.5;
+  gx0 = fract(gx0);
+  vec4 gz0 = vec4(0.5) - abs(gx0) - abs(gy0);
+  vec4 sz0 = step(gz0, vec4(0.0));
+  gx0 -= sz0 * (step(0.0, gx0) - 0.5);
+  gy0 -= sz0 * (step(0.0, gy0) - 0.5);
+
+  vec4 gx1 = ixy1 * (1.0 / 7.0);
+  vec4 gy1 = fract(floor(gx1) * (1.0 / 7.0)) - 0.5;
+  gx1 = fract(gx1);
+  vec4 gz1 = vec4(0.5) - abs(gx1) - abs(gy1);
+  vec4 sz1 = step(gz1, vec4(0.0));
+  gx1 -= sz1 * (step(0.0, gx1) - 0.5);
+  gy1 -= sz1 * (step(0.0, gy1) - 0.5);
+
+  vec3 g000 = vec3(gx0.x,gy0.x,gz0.x);
+  vec3 g100 = vec3(gx0.y,gy0.y,gz0.y);
+  vec3 g010 = vec3(gx0.z,gy0.z,gz0.z);
+  vec3 g110 = vec3(gx0.w,gy0.w,gz0.w);
+  vec3 g001 = vec3(gx1.x,gy1.x,gz1.x);
+  vec3 g101 = vec3(gx1.y,gy1.y,gz1.y);
+  vec3 g011 = vec3(gx1.z,gy1.z,gz1.z);
+  vec3 g111 = vec3(gx1.w,gy1.w,gz1.w);
+
+  vec4 norm0 = taylorInvSqrt(vec4(dot(g000, g000), dot(g010, g010), dot(g100, g100), dot(g110, g110)));
+  g000 *= norm0.x;
+  g010 *= norm0.y;
+  g100 *= norm0.z;
+  g110 *= norm0.w;
+  vec4 norm1 = taylorInvSqrt(vec4(dot(g001, g001), dot(g011, g011), dot(g101, g101), dot(g111, g111)));
+  g001 *= norm1.x;
+  g011 *= norm1.y;
+  g101 *= norm1.z;
+  g111 *= norm1.w;
+
+  float n000 = dot(g000, Pf0);
+  float n100 = dot(g100, vec3(Pf1.x, Pf0.yz));
+  float n010 = dot(g010, vec3(Pf0.x, Pf1.y, Pf0.z));
+  float n110 = dot(g110, vec3(Pf1.xy, Pf0.z));
+  float n001 = dot(g001, vec3(Pf0.xy, Pf1.z));
+  float n101 = dot(g101, vec3(Pf1.x, Pf0.y, Pf1.z));
+  float n011 = dot(g011, vec3(Pf0.x, Pf1.yz));
+  float n111 = dot(g111, Pf1);
+
+  vec3 fade_xyz = fade(Pf0);
+  vec4 n_z = mix(vec4(n000, n100, n010, n110), vec4(n001, n101, n011, n111), fade_xyz.z);
+  vec2 n_yz = mix(n_z.xy, n_z.zw, fade_xyz.y);
+  float n_xyz = mix(n_yz.x, n_yz.y, fade_xyz.x); 
+  return 2.2 * n_xyz;
+}
+
+// Classic Perlin noise, periodic variant
+float pnoise(vec3 P, vec3 rep)
+{
+  vec3 Pi0 = mod(floor(P), rep); // Integer part, modulo period
+  vec3 Pi1 = mod(Pi0 + vec3(1.0), rep); // Integer part + 1, mod period
+  Pi0 = mod289(Pi0);
+  Pi1 = mod289(Pi1);
+  vec3 Pf0 = fract(P); // Fractional part for interpolation
+  vec3 Pf1 = Pf0 - vec3(1.0); // Fractional part - 1.0
+  vec4 ix = vec4(Pi0.x, Pi1.x, Pi0.x, Pi1.x);
+  vec4 iy = vec4(Pi0.yy, Pi1.yy);
+  vec4 iz0 = Pi0.zzzz;
+  vec4 iz1 = Pi1.zzzz;
+
+  vec4 ixy = permute(permute(ix) + iy);
+  vec4 ixy0 = permute(ixy + iz0);
+  vec4 ixy1 = permute(ixy + iz1);
+
+  vec4 gx0 = ixy0 * (1.0 / 7.0);
+  vec4 gy0 = fract(floor(gx0) * (1.0 / 7.0)) - 0.5;
+  gx0 = fract(gx0);
+  vec4 gz0 = vec4(0.5) - abs(gx0) - abs(gy0);
+  vec4 sz0 = step(gz0, vec4(0.0));
+  gx0 -= sz0 * (step(0.0, gx0) - 0.5);
+  gy0 -= sz0 * (step(0.0, gy0) - 0.5);
+
+  vec4 gx1 = ixy1 * (1.0 / 7.0);
+  vec4 gy1 = fract(floor(gx1) * (1.0 / 7.0)) - 0.5;
+  gx1 = fract(gx1);
+  vec4 gz1 = vec4(0.5) - abs(gx1) - abs(gy1);
+  vec4 sz1 = step(gz1, vec4(0.0));
+  gx1 -= sz1 * (step(0.0, gx1) - 0.5);
+  gy1 -= sz1 * (step(0.0, gy1) - 0.5);
+
+  vec3 g000 = vec3(gx0.x,gy0.x,gz0.x);
+  vec3 g100 = vec3(gx0.y,gy0.y,gz0.y);
+  vec3 g010 = vec3(gx0.z,gy0.z,gz0.z);
+  vec3 g110 = vec3(gx0.w,gy0.w,gz0.w);
+  vec3 g001 = vec3(gx1.x,gy1.x,gz1.x);
+  vec3 g101 = vec3(gx1.y,gy1.y,gz1.y);
+  vec3 g011 = vec3(gx1.z,gy1.z,gz1.z);
+  vec3 g111 = vec3(gx1.w,gy1.w,gz1.w);
+
+  vec4 norm0 = taylorInvSqrt(vec4(dot(g000, g000), dot(g010, g010), dot(g100, g100), dot(g110, g110)));
+  g000 *= norm0.x;
+  g010 *= norm0.y;
+  g100 *= norm0.z;
+  g110 *= norm0.w;
+  vec4 norm1 = taylorInvSqrt(vec4(dot(g001, g001), dot(g011, g011), dot(g101, g101), dot(g111, g111)));
+  g001 *= norm1.x;
+  g011 *= norm1.y;
+  g101 *= norm1.z;
+  g111 *= norm1.w;
+
+  float n000 = dot(g000, Pf0);
+  float n100 = dot(g100, vec3(Pf1.x, Pf0.yz));
+  float n010 = dot(g010, vec3(Pf0.x, Pf1.y, Pf0.z));
+  float n110 = dot(g110, vec3(Pf1.xy, Pf0.z));
+  float n001 = dot(g001, vec3(Pf0.xy, Pf1.z));
+  float n101 = dot(g101, vec3(Pf1.x, Pf0.y, Pf1.z));
+  float n011 = dot(g011, vec3(Pf0.x, Pf1.yz));
+  float n111 = dot(g111, Pf1);
+
+  vec3 fade_xyz = fade(Pf0);
+  vec4 n_z = mix(vec4(n000, n100, n010, n110), vec4(n001, n101, n011, n111), fade_xyz.z);
+  vec2 n_yz = mix(n_z.xy, n_z.zw, fade_xyz.y);
+  float n_xyz = mix(n_yz.x, n_yz.y, fade_xyz.x); 
+  return 2.2 * n_xyz;
+}
+
+varying vec2 vUv;
+varying float noise;
+
+float turbulence( vec3 p ) {
+    float w = 100.0;
+    float t = -.5;
+    for (float f = 1.0 ; f <= 10.0 ; f++ ){
+        float power = pow( 2.0, f );
+        t += abs( pnoise( vec3( power * p ), vec3( 10.0, 10.0, 10.0 ) ) / power );
+    }
+    return t;
+}
+varying vec3 vColor;
+void main() {
+
+    vUv = uv;
+	vColor = color;
+    // get a turbulent 3d noise using the normal, normal to high freq
+    noise = 10.0 *  -.10 * turbulence( .5 * normal );
+    // get a 3d noise using the position, low frequency
+    float b = 5.0 * pnoise( 0.05 * position, vec3( 100.0 ) );
+    // compose both noises
+    float displacement = - 10. * noise + b;
+    
+    // move the position along the normal and transform it
+    vec3 newPosition = position + normal * displacement;
+    gl_Position = projectionMatrix * modelViewMatrix * vec4( newPosition, 1.0 );
+
+}
+		
+</script>
+
+<script id="fragmentShader" type="x-shader/x-fragment">
+    varying vec3 vColor;
+
+    void main(){
+        gl_FragColor = vec4( vColor.rgb, 1.0 );
+    }
+</script>
+<script>
+    var container,
+        camera,
+        controls,
+        scene,
+        renderer,
+        model;
+
+    init();
+    animate();
+
+    function init() {
+        camera = new THREE.PerspectiveCamera(70, window.innerWidth / window.innerHeight, 1, 10000);
+        camera.position.x = 0;
+		camera.position.y = 0;
+        camera.position.z = 50;
+        scene = new THREE.Scene();
+
+		
+//-------------------------------------Geometry(1)------------------------------------
+
+        var geometry1 = new THREE.IcosahedronGeometry( 15, 5 );
+		var vertices = geometry1.vertices.length * 2 -15;
+
+		for( var v = 0 ; v < vertices ; v++)
+		{
+		var color1 = new THREE.Color("rgb(30,35,35)");
+		var color2= new THREE.Color("rgb(170,180,190)");
+		//var color3= new THREE.Color("rgb(245,245,255)");
+		var colors = [];
+		colors[0]= color1;
+		colors[1]= color2;
+		//colors[2]= color3;
+		
+		var color = Math.round(Math.random()*2) ;
+        geometry1.faces[v].vertexColors[0] = new THREE.Color(color1);
+		var color = Math.round(Math.random()*2) ;
+        geometry1.faces[v].vertexColors[1] = new THREE.Color(color1);
+		var color = Math.round(Math.random()*2) ;
+        geometry1.faces[v].vertexColors[2] = new THREE.Color(color1);
+		
+		}
+//------------------------------------------------------------------------------------
+//-------------------------------------Geometry(2)------------------------------------
+var geometry2 = new THREE.IcosahedronGeometry( 15, 5 );
+		var vertices = geometry2.vertices.length * 2 -15;
+
+		for( var v = 0 ; v < vertices ; v++)
+		{
+		var color1 = new THREE.Color("rgb(250,195,0)");
+		var color2= new THREE.Color("rgb(255,255,255)");
+		
+		var colors = [];
+		colors[0]= color1;
+		colors[1]= color2;
+		
+		
+		var color = Math.round(Math.random()*2) ;
+        geometry2.faces[v].vertexColors[0] = new THREE.Color(colors[color]);
+		var color = Math.round(Math.random()*2) ;
+        geometry2.faces[v].vertexColors[1] = new THREE.Color(color1);
+		var color = Math.round(Math.random()*2) ;
+        geometry2.faces[v].vertexColors[2] = new THREE.Color(color1);
+		
+		}
+//------------------------------------------------------------------------------------
+//-------------------------------------Geometry(3)------------------------------------
+var geometry3 = new THREE.IcosahedronGeometry( 15, 5 );
+		var vertices = geometry3.vertices.length * 2 -15;
+
+		for( var v = 0 ; v < vertices ; v++)
+		{
+		var color1 = new THREE.Color("rgb(168,166,0)");
+		var color2= new THREE.Color("rgb(210,187,0)");
+		
+		var colors = [];
+		colors[0]= color1;
+		colors[1]= color2;
+		
+		
+		var color = Math.round(Math.random()*2) ;
+        geometry3.faces[v].vertexColors[0] = new THREE.Color(colors[color]);
+		var color = Math.round(Math.random()*2) ;
+        geometry3.faces[v].vertexColors[1] = new THREE.Color(colors[color]);
+		var color = Math.round(Math.random()*2) ;
+        geometry3.faces[v].vertexColors[2] = new THREE.Color(colors[color]);
+		
+		}
+//------------------------------------------------------------------------------------
+//-------------------------------------Geometry(4)------------------------------------
+var geometry4 = new THREE.IcosahedronGeometry( 15, 5 );
+		var vertices = geometry4.vertices.length * 2 -15;
+
+		for( var v = 0 ; v < vertices ; v++)
+		{
+		var color1 = new THREE.Color("rgb(170,121,0)");
+		var color2= new THREE.Color("rgb(206,171,101)");
+		//var color3= new THREE.Color("rgb(229,206,124)");
+
+		var colors = [];
+		colors[0]= color1;
+		colors[1]= color2;
+		//colors[2]= color3;
+		
+		
+		var color = Math.round(Math.random()*2) ;
+        geometry4.faces[v].vertexColors[0] = new THREE.Color(colors[color]);
+		var color = Math.round(Math.random()*2) ;
+        geometry4.faces[v].vertexColors[1] = new THREE.Color(colors[color]);
+		var color = Math.round(Math.random()*2) ;
+        geometry4.faces[v].vertexColors[2] = new THREE.Color(colors[color]);
+		
+		}
+//------------------------------------------------------------------------------------
+//-------------------------------------Geometry(5)------------------------------------
+var geometry5 = new THREE.IcosahedronGeometry( 15, 5 );
+		var vertices = geometry5.vertices.length * 2 -15;
+
+		for( var v = 0 ; v < vertices ; v++)
+		{
+		var color1 = new THREE.Color("rgb(94,81,0)");
+		var color2= new THREE.Color("rgb(140,126,0)");
+		
+		var colors = [];
+		colors[0]= color1;
+		colors[1]= color2;
+		
+		
+		var color = Math.round(Math.random()*2) ;
+        geometry5.faces[v].vertexColors[0] = new THREE.Color(colors[color]);
+		var color = Math.round(Math.random()*2) ;
+        geometry5.faces[v].vertexColors[1] = new THREE.Color(colors[color]);
+		var color = Math.round(Math.random()*2) ;
+        geometry5.faces[v].vertexColors[2] = new THREE.Color(colors[color]);
+		
+		}
+//------------------------------------------------------------------------------------
+//-------------------------------------Geometry(6)------------------------------------
+var geometry6 = new THREE.IcosahedronGeometry( 15, 5 );
+		var vertices = geometry6.vertices.length * 2 -15;
+
+		for( var v = 0 ; v < vertices ; v++)
+		{
+		var color1 = new THREE.Color("rgb(155,193,174)");
+		var color2= new THREE.Color("rgb(255,255,255)");
+		
+		var colors = [];
+		colors[0]= color1;
+		colors[1]= color2;
+		
+		
+		var color = Math.round(Math.random()*2) ;
+        geometry6.faces[v].vertexColors[0] = new THREE.Color(colors[color]);
+		var color = Math.round(Math.random()*2) ;
+        geometry6.faces[v].vertexColors[1] = new THREE.Color(color1);
+		var color = Math.round(Math.random()*2) ;
+        geometry6.faces[v].vertexColors[2] = new THREE.Color(color1);
+		
+		}
+//------------------------------------------------------------------------------------
+//-------------------------------------Geometry(7)------------------------------------
+var geometry7 = new THREE.IcosahedronGeometry( 15, 5 );
+		var vertices = geometry7.vertices.length * 2 -15;
+
+		for( var v = 0 ; v < vertices ; v++)
+		{
+		var color1 = new THREE.Color("rgb(44,69,19)");
+		var color2= new THREE.Color("rgb(100,115,75)");
+		
+		var colors = [];
+		colors[0]= color1;
+		colors[1]= color2;
+		
+		
+		var color = Math.round(Math.random()*2) ;
+        geometry7.faces[v].vertexColors[0] = new THREE.Color(color1);
+		var color = Math.round(Math.random()*2) ;
+        geometry7.faces[v].vertexColors[1] = new THREE.Color(color1);
+		var color = Math.round(Math.random()*2) ;
+        geometry7.faces[v].vertexColors[2] = new THREE.Color(colors[color]);
+		
+		}
+//------------------------------------------------------------------------------------
+//-------------------------------------Geometry(8)------------------------------------
+var geometry8 = new THREE.IcosahedronGeometry( 15, 5 );
+		var vertices = geometry8.vertices.length * 2 -15;
+
+		for( var v = 0 ; v < vertices ; v++)
+		{
+		var color1 = new THREE.Color("rgb(163,84,45)");
+		var color2= new THREE.Color("rgb(255,255,255)");
+		
+		var colors = [];
+		colors[0]= color1;
+		colors[1]= color2;
+		
+		
+		var color = Math.round(Math.random()*2) ;
+        geometry8.faces[v].vertexColors[0] = new THREE.Color(color1);
+		var color = Math.round(Math.random()*2) ;
+        geometry8.faces[v].vertexColors[1] = new THREE.Color(color1);
+		var color = Math.round(Math.random()*2) ;
+        geometry8.faces[v].vertexColors[2] = new THREE.Color(colors[color]);
+		
+		}
+//------------------------------------------------------------------------------------
+//-------------------------------------Geometry(9)------------------------------------
+var geometry9 = new THREE.IcosahedronGeometry( 15, 5 );
+		var vertices = geometry9.vertices.length * 2 -15;
+
+		for( var v = 0 ; v < vertices ; v++)
+		{
+		var color1 = new THREE.Color("rgb(225,185,0)");
+		var color2= new THREE.Color("rgb(134,119,0)");
+		
+		var colors = [];
+		colors[0]= color1;
+		colors[1]= color2;
+		
+		
+		var color = Math.round(Math.random()*2) ;
+        geometry9.faces[v].vertexColors[0] = new THREE.Color(colors[color]);
+		var color = Math.round(Math.random()*2) ;
+        geometry9.faces[v].vertexColors[1] = new THREE.Color(colors[color]);
+		var color = Math.round(Math.random()*2) ;
+        geometry9.faces[v].vertexColors[2] = new THREE.Color(colors[color]);
+		
+		}
+//------------------------------------------------------------------------------------
+//-------------------------------------Geometry(10)-----------------------------------
+var geometry10 = new THREE.IcosahedronGeometry( 15, 5 );
+		var vertices = geometry10.vertices.length * 2 -15;
+
+		for( var v = 0 ; v < vertices ; v++)
+		{
+		var color1 = new THREE.Color("rgb(210,170,0)");
+		var color2= new THREE.Color("rgb(29,45,11)");
+		
+		var colors = [];
+		colors[0]= color1;
+		colors[1]= color2;
+		
+		
+		var color = Math.round(Math.random()*2) ;
+        geometry10.faces[v].vertexColors[0] = new THREE.Color(colors[color]);
+		var color = Math.round(Math.random()*2) ;
+        geometry10.faces[v].vertexColors[1] = new THREE.Color(colors[color]);
+		var color = Math.round(Math.random()*2) ;
+        geometry10.faces[v].vertexColors[2] = new THREE.Color(colors[color]);
+		
+		}
+//------------------------------------------------------------------------------------
+//-------------------------------------Geometry(11)-----------------------------------
+var geometry11 = new THREE.IcosahedronGeometry( 15, 5 );
+		var vertices = geometry11.vertices.length * 2 -15;
+
+		for( var v = 0 ; v < vertices ; v++)
+		{
+		var color1 = new THREE.Color("rgb(224,169,185)");
+		var color2= new THREE.Color("rgb(181,90,90)");
+		
+		var colors = [];
+		colors[0]= color1;
+		colors[1]= color2;
+		
+		
+		var color = Math.round(Math.random()*2) ;
+        geometry11.faces[v].vertexColors[0] = new THREE.Color(colors[color]);
+		var color = Math.round(Math.random()*2) ;
+        geometry11.faces[v].vertexColors[1] = new THREE.Color(colors[color]);
+		var color = Math.round(Math.random()*2) ;
+        geometry11.faces[v].vertexColors[2] = new THREE.Color(colors[color]);
+		
+		}
+//------------------------------------------------------------------------------------
+//-------------------------------------Geometry(12)-----------------------------------
+var geometry12 = new THREE.IcosahedronGeometry( 15, 5 );
+		var vertices = geometry12.vertices.length * 2 -15;
+
+		for( var v = 0 ; v < vertices ; v++)
+		{
+		var color1 = new THREE.Color("rgb(111,39,44)");
+		var color2= new THREE.Color("rgb(113,50,107)");
+		
+		var colors = [];
+		colors[0]= color1;
+		colors[1]= color2;
+		
+		
+		var color = Math.round(Math.random()*2) ;
+        geometry12.faces[v].vertexColors[0] = new THREE.Color(colors[color]);
+		var color = Math.round(Math.random()*2) ;
+        geometry12.faces[v].vertexColors[1] = new THREE.Color(colors[color]);
+		var color = Math.round(Math.random()*2) ;
+        geometry12.faces[v].vertexColors[2] = new THREE.Color(colors[color]);
+		
+		}
+//------------------------------------------------------------------------------------
+//-------------------------------------Geometry(13)-----------------------------------
+var geometry13 = new THREE.IcosahedronGeometry( 15, 5 );
+		var vertices = geometry13.vertices.length * 2 -15;
+
+		for( var v = 0 ; v < vertices ; v++)
+		{
+		var color1 = new THREE.Color("rgb(120,30,15)");
+		var color2= new THREE.Color("rgb(120,30,15)");
+		
+		var colors = [];
+		colors[0]= color1;
+		colors[1]= color2;
+		
+		
+		var color = Math.round(Math.random()*2) ;
+        geometry13.faces[v].vertexColors[0] = new THREE.Color(colors[color]);
+		var color = Math.round(Math.random()*2) ;
+        geometry13.faces[v].vertexColors[1] = new THREE.Color(colors[color]);
+		var color = Math.round(Math.random()*2) ;
+        geometry13.faces[v].vertexColors[2] = new THREE.Color(colors[color]);
+		
+		}
+//------------------------------------------------------------------------------------
+//-------------------------------------Geometry(14)-----------------------------------
+var geometry14 = new THREE.IcosahedronGeometry( 15, 5 );
+		var vertices = geometry14.vertices.length * 2 -15;
+
+		for( var v = 0 ; v < vertices ; v++)
+		{
+		var color1 = new THREE.Color("rgb(160,163,181)");
+		var color2= new THREE.Color("rgb(255,255,255)");
+		
+		var colors = [];
+		colors[0]= color1;
+		colors[1]= color2;
+		
+		
+		var color = Math.round(Math.random()*2) ;
+        geometry14.faces[v].vertexColors[0] = new THREE.Color(colors[color]);
+		var color = Math.round(Math.random()*2) ;
+        geometry14.faces[v].vertexColors[1] = new THREE.Color(color1);
+		var color = Math.round(Math.random()*2) ;
+        geometry14.faces[v].vertexColors[2] = new THREE.Color(color1);
+		
+		}
+//------------------------------------------------------------------------------------
+//-------------------------------------Geometry(15)-----------------------------------
+var geometry15 = new THREE.IcosahedronGeometry( 15, 5 );
+		var vertices = geometry15.vertices.length * 2 -15;
+
+		for( var v = 0 ; v < vertices ; v++)
+		{
+		var color1 = new THREE.Color("rgb(212,185,213)");
+		var color2= new THREE.Color("rgb(166,122,190)");
+		
+		var colors = [];
+		colors[0]= color1;
+		colors[1]= color2;
+		
+		
+		var color = Math.round(Math.random()*2) ;
+        geometry15.faces[v].vertexColors[0] = new THREE.Color(colors[color]);
+		var color = Math.round(Math.random()*2) ;
+        geometry15.faces[v].vertexColors[1] = new THREE.Color(colors[color]);
+		var color = Math.round(Math.random()*2) ;
+        geometry15.faces[v].vertexColors[2] = new THREE.Color(colors[color]);
+		
+		}
+//------------------------------------------------------------------------------------
+//-------------------------------------Geometry(16)-----------------------------------		
+var geometry16 = new THREE.IcosahedronGeometry( 15, 5 );
+		var vertices = geometry16.vertices.length * 2 -15;
+
+		for( var v = 0 ; v < vertices ; v++)
+		{
+		var color1 = new THREE.Color("rgb(170,121,0)");
+		var color2= new THREE.Color("rgb(206,171,101)");
+		//var color3= new THREE.Color("rgb(229,206,124)");
+
+		var colors = [];
+		colors[0]= color1;
+		colors[1]= color2;
+		//colors[2]= color3;
+		
+		var color = Math.round(Math.random()*2) ;
+        geometry16.faces[v].vertexColors[0] = new THREE.Color(color1);
+		var color = Math.round(Math.random()*2) ;
+        geometry16.faces[v].vertexColors[1] = new THREE.Color(color1);
+		var color = Math.round(Math.random()*2) ;
+        geometry16.faces[v].vertexColors[2] = new THREE.Color(color1);
+		
+		}
+//------------------------------------------------------------------------------------
+
+		var Geometries =[
+							geometry1, 
+							geometry2,
+							geometry3, 
+							geometry4, 
+							geometry4, 
+							geometry5, 
+							geometry6, 
+							geometry7, 
+							geometry8, 
+							geometry9, 
+							geometry10, 
+							geometry11, 
+							geometry4, 
+							geometry12, 
+							geometry13, 
+							geometry14, 
+							geometry15, 
+							geometry16, 
+							];
+
+		var Sizes = [ 2, 3, 4, 5, 6, 7];
+		var Locations = [1, 2, 3, 4, 5];
+		var Rotation = [90, 180, 360];
+		
+//++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+//++++++++++++++++++++++++++++Creating the Shader Material++++++++++++++++++++++++++++
+        
+		var materialShader = new THREE.ShaderMaterial({
+            vertexShader: document.getElementById('vertexShader').textContent,
+            vertexColors: THREE.VertexColors,
+            fragmentShader: document.getElementById('fragmentShader').textContent
+        });
+		
+		var planematerial = new THREE.MeshBasicMaterial({
+        map: THREE.ImageUtils.loadTexture('x3.gif')});
+		planematerial.transparent=true;
+		var planegeometry = new THREE.PlaneGeometry( 512, 479 );
+		
+		var myplane = new THREE.Mesh( planegeometry, planematerial );
+
+		var planeback = new THREE.PlaneGeometry( 512, 35 );
+		var planebackmaterial = new THREE.MeshBasicMaterial({
+        map: THREE.ImageUtils.loadTexture('x2.jpg')});
+		var plane = new THREE.Mesh( planeback, planebackmaterial );
+		plane.scale.y = 2.2;
+		plane.position.z = -5;
+		scene.add( plane );
+		
+					
+//++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++       
+//++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+		var DominantG = Geometries[Math.floor(Math.random() * Geometries.length)];
+		var DominantLocation = Locations[Math.floor(Math.random() * Locations.length)];
+		
+		
+		
+		var xstart; var xend; var ystart; var yend;
+		
+		if(DominantLocation == 1)
+		{
+			xstart = -22; xend = 42; ystart = -21; yend = 21;
+		}
+		 
+		if(DominantLocation == 2)
+		{
+			xstart = -70; xend = -2; ystart = 0; yend = 35;
+		}
+		 
+		if(DominantLocation == 3)
+		{
+			xstart = 2; xend = 70; ystart = 0; yend = 35;
+		}
+		 
+		if(DominantLocation == 4)
+		{
+			xstart = -70; xend = -2; ystart = -35; yend = -1;
+		}
+		
+		if(DominantLocation == 5)
+		{
+			xstart = 2; xend = 70; ystart = -35; yend = -1;
+		}
+		
+		for( var y = 45; y >=-35 ;)
+		{
+		y -= 5;
+		for ( var x = -70 ; x <= 70;)
+		{
+			var geometry = Geometries[Math.floor(Math.random() * Geometries.length)];
+			var size = Sizes[Math.floor(Math.random() * Sizes.length)];
+			
+			if( x >= xstart && x <= xend && y >= ystart && y <= yend )
+			{
+			var model = new THREE.Mesh(DominantG, materialShader);
+			}
+			else
+			{
+			var model = new THREE.Mesh(geometry, materialShader);
+			}
+			
+			model.position.x = x;
+			model.position.y = y;
+			
+			if(size == 1)
+			{
+			model.scale.y = 0.5;
+			x+=23 ;
+			}
+			
+			if(size == 2)
+			{
+			model.scale.x = 0.5;
+			model.scale.y = 0.43;
+			model.scale.z = 0.5;
+			x+=11;
+			}
+			
+			if(size == 3)
+			{
+			model.scale.x = 0.43;
+			model.scale.y = 0.36;
+			model.scale.z = 0.43;
+			x+=10;
+			}
+			
+			if(size == 4)
+			{
+			model.scale.x = 0.36;
+			model.scale.y = 0.3;
+			model.scale.z = 0.36;
+			x+=9;
+			}
+			
+			if(size == 5)
+			{
+			model.scale.x = 0.29;
+			model.scale.y = 0.23;
+			model.scale.z = 0.29;
+			x+=7.5;
+			}
+			
+			if(size == 6)
+			{
+			model.scale.x = 0.22;
+			model.scale.y = 0.17;
+			model.scale.z = 0.22;
+			x+=5.5;
+			}
+			
+			if(size == 7)
+			{
+			model.scale.x = 0.15;
+			model.scale.y = 0.1;
+			model.scale.z = 0.15;
+			x+=3.9;
+			}
+			
+			scene.add(model);
+		}}
+	
+		myplane.position.z = 10;
+		myplane.scale.x = 0.2185;
+		myplane.scale.y = 0.1165;
+		scene.add(myplane);
+		
+//------------------------------------------------------------------------------------
+        renderer = new THREE.WebGLRenderer();
+        renderer.setClearColor(0xf0f0f0);
+        renderer.setSize(512, 479);
+
+		renderer.sortObjects = true;
+        container = document.createElement('div');
+        document.body.appendChild(container);
+        container.appendChild(renderer.domElement);
+        window.addEventListener('resize', onWindowResize, false);
+    }
+//------------------------------------------------------------------------------------
+    function onWindowResize() {
+        camera.aspect = 512/479;
+        camera.updateProjectionMatrix();
+
+        renderer.setSize(512, 479);
+    }
+
+    function animate() {
+        requestAnimationFrame(animate);
+        render();
+    }
+
+    function render() {
+        renderer.render(scene, camera);
+    }
+
+</script>
+</html>
